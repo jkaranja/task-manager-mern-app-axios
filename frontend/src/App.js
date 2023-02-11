@@ -88,6 +88,7 @@ function App() {
       //dull background
       grey: {
         main: "rgb(249, 250, 251)",
+        dark: "rgb(158, 158, 158)", //for progress/spinner
       },
       //lavender//eg in iconBtn background
       dull: {

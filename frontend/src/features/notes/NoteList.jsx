@@ -6,6 +6,7 @@ import { styled } from "@mui/material/styles";
 import {
   Alert,
   Button,
+  CircularProgress,
   Grid,
   IconButton,
   InputAdornment,
@@ -54,6 +55,7 @@ import SS2Pagination from "../../components/SS2Pagination";
 import MUIPagination from "../../components/MUIPagination";
 import NoteItem from "./NoteItem";
 import useAxiosPrivate from "../../hooks/useAxiosPrivate";
+import useDebounce from "../../hooks/useDebounce";
 
 const NoteList = () => {
   const location = useLocation();
@@ -69,10 +71,11 @@ const NoteList = () => {
   //filter
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [title, setTitle] = useState(searchParams.get("q") || "");
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [filterError, setFilterError] = useState(null);
   const [cleared, setCleared] = useState(false);
-
+  const debouncedSearchTerm = useDebounce(searchTerm, 1000);
+  const [isFetching, setIsFetching] = useState(false);
   //bulk actions
   const [bulkCheck, setBulkCheck] = useState(false);
 
@@ -107,11 +110,10 @@ const NoteList = () => {
   const handlePageChange = (page) => {
     setCurrentPage(page);
 
-    title
-      ? navigate(`/notes?page=${currentPage}&q=${title}`)
+    debouncedSearchTerm
+      ? navigate(`/notes?page=${currentPage}&q=${debouncedSearchTerm}`)
       : navigate(`/notes?page=${page}`); //update url
   };
-
 
   /* ----------------------------------------
    FETCH NOTES SERVICE
@@ -122,7 +124,7 @@ const NoteList = () => {
       const {
         data: { notes, pages },
       } = await axiosPrivate.get(
-        `/api/notes?page=${currentPage}&size=${itemsPerPage}&fromDate=${fromDate}&toDate=${toDate}&search=${title}`
+        `/api/notes?page=${currentPage}&size=${itemsPerPage}&fromDate=${fromDate}&toDate=${toDate}&search=${debouncedSearchTerm}`
       );
 
       setTotalPages(pages);
@@ -149,12 +151,24 @@ const NoteList = () => {
     handleCloseD();
   };
 
-  //handle search query/title on enter
-  const handleSearchQuery = (e) => {
-    if (e.key === "Enter" || e.keyCode === 13) {
-      fetchNotes();
+  //handle search query/searchTerm on enter
+  // const handleSearchQuery = (e) => {
+  //   if (e.key === "Enter" || e.keyCode === 13) {
+  //     fetchNotes();
+  //   }
+  // };
+
+ 
+
+  useEffect(() => {
+    if (debouncedSearchTerm !== searchTerm) {
+      setIsFetching(true);
+      return;
     }
-  };
+
+    setIsFetching(false);
+  }, [searchTerm, debouncedSearchTerm]);
+
   //clear filter//
   const handleClearFilter = () => {
     setFromDate("");
@@ -168,8 +182,13 @@ const NoteList = () => {
 
   //update url
   useEffect(() => {
-    title && navigate(`/notes?page=${currentPage}&q=${title}`);
-  }, [title, navigate]);
+    if (searchTerm) {
+      navigate(`/notes?page=${currentPage}&q=${searchTerm}`);
+    }
+    if (debouncedSearchTerm && !searchTerm) {
+      navigate(`/notes?page=${currentPage}`);
+    }
+  }, [searchTerm]);
 
   //checked
 
@@ -197,14 +216,28 @@ const NoteList = () => {
     setBulkCheck(!bulkCheck);
   };
 
-  
-
   /* ----------------------------------------
    FETCH NOTES ON MOUNT & PAGE CHANGE
    ----------------------------------------*/
   useEffect(() => {
     fetchNotes();
   }, [currentPage]);
+
+   useEffect(() => {
+     if (!debouncedSearchTerm && currentPage){
+      fetchNotes();
+     };
+
+     //catch when you clear search term
+     if (debouncedSearchTerm && !searchTerm) {
+       fetchNotes();
+       return;
+     }
+
+     if (debouncedSearchTerm) {
+       fetchNotes();
+     }
+   }, [currentPage, debouncedSearchTerm, searchTerm]);
 
   //dialog props
   const dialogProps = {
@@ -289,7 +322,9 @@ const NoteList = () => {
           </Grid>
           <Grid xs py={2} px={1}>
             <TextField
-              onChange={(e) => setTitle(e.target.value?.trim()?.toLowerCase())}
+              onChange={(e) =>
+                setSearchTerm(e.target.value?.trim()?.toLowerCase())
+              }
               size="small"
               fullWidth
               color="secondary"
@@ -303,7 +338,7 @@ const NoteList = () => {
                   </InputAdornment>
                 ),
               }}
-              onKeyPress={handleSearchQuery}
+              // onKeyPress={handleSearchQuery}
             />
           </Grid>
 
@@ -321,25 +356,35 @@ const NoteList = () => {
           </Grid>
         </Grid>
 
-        <Box color="primary.main" p={3}>
+        <Box
+          color="primary.main"
+          p={3}
+          sx={{ display: "flex" }}
+          alignItems="center"
+          justifyContent="space-between"
+        >
           <Typography>
-            {" "}
-            {title && `Search result for term: ${title}`}
+            {searchTerm && `Search result for term: ${searchTerm}`}
+          </Typography>
+          <Typography sx={{ flex: 1 }} px pt>
+            {isFetching && (
+              <CircularProgress sx={{ color: "grey.dark" }} size={20} />
+            )}
           </Typography>
           <Typography>
             {fromDate &&
               `Search result for date filter: from: ${
                 fromDate && fromDate?.toLocaleDateString?.("en-GB")
               } => ${toDate && toDate?.toLocaleDateString?.("en-GB")}`}
-            <Button
-              color="error"
-              onClick={handleClearFilter}
-              variant="outlined"
-              sx={{ float: "right" }}
-            >
-              Clear filters
-            </Button>
           </Typography>
+          <Button
+            color="error"
+            onClick={handleClearFilter}
+            variant="outlined"
+            sx={{ float: "right" }}
+          >
+            Clear filters
+          </Button>
         </Box>
 
         <Table
@@ -361,12 +406,12 @@ const NoteList = () => {
                   alignItems="center"
                 >
                   <Checkbox checked={bulkCheck} onChange={handleBulkCheck} />
-                  <Typography component="span" variant="subtitle2">
+                  <Typography component="span" variant="subsearchTerm2">
                     Order Id
                   </Typography>
                 </Box>
               </TableCell>
-              <TableCell>Title</TableCell>
+              <TableCell>SearchTerm</TableCell>
               <TableCell>Date created</TableCell>
               <TableCell>Deadline</TableCell>
 

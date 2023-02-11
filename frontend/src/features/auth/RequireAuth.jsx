@@ -2,7 +2,13 @@ import { Backdrop, CircularProgress } from "@mui/material";
 import axios from "axios";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { BASE_URL } from "../../constants/axiosConstants";
 import usePersist from "../../hooks/usePersist";
 import { selectCurrentToken, setCredentials } from "./authSlice";
@@ -13,6 +19,10 @@ const RequireAuth = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  //set by oath success redirect
+  const isAuthenticated = searchParams.get("authenticated");
+
   let content;
 
   const location = useLocation();
@@ -47,13 +57,17 @@ const RequireAuth = () => {
         setIsError(true);
       }
     };
-    if (persist && !token) getToken();
+    if ((persist || isAuthenticated) && !token) getToken();
   }, []);
 
   if (isLoading) {
     content = (
       <Backdrop
-        sx={{ color: "#fff", bgcolor: "secondary.main", zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        sx={{
+          color: "#fff",
+          bgcolor: "secondary.main",
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+        }}
         open={isLoading}
       >
         <CircularProgress color="inherit" />
